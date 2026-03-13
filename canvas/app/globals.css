@@ -1,0 +1,238 @@
+@import "tailwindcss";
+
+:root {
+  --app-vh: 1vh;
+  --app-height: 100dvh;
+  --environment-rgb: 86 122 164;
+  --chrome-stroke-rgb: 184 214 244;
+  --chrome-surface-rgb: 8 16 30;
+  --chrome-highlight-rgb: 120 168 220;
+  --chrome-glow-rgb: 134 196 246;
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+* {
+  @apply border-border;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior: none;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  height: var(--app-height);
+  overflow: hidden;
+  background: #000;
+}
+
+.env-glass-frame {
+  border: 1px solid rgb(var(--chrome-stroke-rgb) / 0.34);
+  background:
+    linear-gradient(158deg, rgb(var(--chrome-surface-rgb) / 0.78), rgb(var(--chrome-surface-rgb) / 0.5)),
+    radial-gradient(circle at 88% 0%, rgb(var(--chrome-highlight-rgb) / 0.14), transparent 56%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgb(var(--chrome-stroke-rgb) / 0.18);
+  backdrop-filter: blur(14px) saturate(135%);
+}
+
+.env-glass-frame-soft {
+  border: 1px solid rgb(var(--chrome-stroke-rgb) / 0.28);
+  background-color: rgb(var(--chrome-surface-rgb) / 0.54);
+  box-shadow: inset 0 1px 0 rgb(var(--chrome-stroke-rgb) / 0.16);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
+.env-glass-pill {
+  border: 1px solid rgb(var(--chrome-stroke-rgb) / 0.32);
+  background-color: rgb(var(--chrome-surface-rgb) / 0.58);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgb(var(--chrome-stroke-rgb) / 0.16);
+  backdrop-filter: blur(18px) saturate(138%);
+}
+
+.env-glass-button {
+  border: 1px solid rgb(var(--chrome-stroke-rgb) / 0.28);
+  background-color: rgb(var(--chrome-surface-rgb) / 0.44);
+  box-shadow: inset 0 1px 0 rgb(var(--chrome-stroke-rgb) / 0.14);
+}
+
+.env-glass-button:hover {
+  background-color: rgb(var(--chrome-highlight-rgb) / 0.2);
+}
+
+.env-glass-button-active {
+  border-color: rgb(var(--chrome-glow-rgb) / 0.6);
+  background-color: rgb(var(--chrome-glow-rgb) / 0.2);
+  box-shadow: 0 0 0 1px rgb(var(--chrome-glow-rgb) / 0.28), inset 0 1px 0 rgb(var(--chrome-stroke-rgb) / 0.22);
+}
+
+.env-glass-icon-button {
+  border: 1px solid rgb(var(--chrome-stroke-rgb) / 0.34);
+  background-color: rgb(var(--chrome-surface-rgb) / 0.52);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgb(var(--chrome-stroke-rgb) / 0.18);
+  backdrop-filter: blur(14px) saturate(130%);
+}
+
+.inference-display {
+  position: fixed;
+  top: calc(max(env(safe-area-inset-top), 0.6rem) + 5.5rem);
+  right: 0.75rem;
+  z-index: 35;
+  min-width: clamp(2.5rem, 6vw, 3.2rem);
+  padding: 0.26rem 0.52rem;
+  border-radius: 0.78rem;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+  font-size: clamp(0.62rem, 0.56rem + 0.18vw, 0.74rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: rgb(244 252 255 / 0.94);
+  text-align: right;
+  pointer-events: none;
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+
+.inference-display.pulse {
+  transform: scale(1.05);
+}
+
+.app-viewport {
+  width: 100vw;
+  height: var(--app-height);
+  min-height: calc(var(--app-vh) * 100);
+  overflow: hidden;
+}
+
+.app-safe-insets {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+.module-board-drag-handle,
+.module-board-drag-handle * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.module-board-grid {
+  touch-action: pan-y;
+}
+
+.module-board-drag-handle {
+  touch-action: none;
+}
+
+body.dragging {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* Prevent iOS focus-zoom for chat input controls */
+.chat-no-zoom {
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  .chat-no-zoom {
+    font-size: 13px;
+  }
+}
+
+.bubble-float {
+  animation-name: bubbleLife, bubbleDrift;
+  animation-timing-function: ease-out, ease-in-out;
+  animation-fill-mode: forwards, both;
+  animation-iteration-count: 1, infinite;
+}
+
+.bubble-glob {
+  border-radius: 28px 24px 30px 22px / 22px 30px 24px 28px;
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+@keyframes bubbleLife {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.96);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -8px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -18px) scale(0.98);
+  }
+}
+
+@keyframes bubbleDrift {
+  0%,
+  100% {
+    border-radius: 28px 24px 30px 22px / 22px 30px 24px 28px;
+  }
+  33% {
+    border-radius: 24px 30px 22px 30px / 30px 20px 30px 22px;
+  }
+  66% {
+    border-radius: 30px 22px 28px 24px / 24px 30px 20px 30px;
+  }
+}
