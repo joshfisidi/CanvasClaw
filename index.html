@@ -1,0 +1,1260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenClaw Canvas</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; overflow: hidden;
+    background: #0a0a12;
+    color: #e0e0e8;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  /* ── Ambient Grid Background ── */
+  .scene {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    perspective: 1200px;
+    overflow: hidden;
+    --bg-shift-x: 0px;
+    --bg-shift-y: 0px;
+    --grid-shift-x: 0px;
+    --grid-shift-y: 0px;
+    background:
+      radial-gradient(
+        ellipse at calc(50% + var(--bg-shift-x, 0px)) calc(80% + var(--bg-shift-y, 0px)),
+        rgba(20, 60, 120, 0.15) 0%,
+        transparent 60%
+      ),
+      linear-gradient(180deg, #0a0a12 0%, #0d0f1a 100%);
+  }
+  .scene::before {
+    content: '';
+    position: absolute; inset: 0;
+    z-index: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position:
+      var(--grid-shift-x, 0px) var(--grid-shift-y, 0px),
+      var(--grid-shift-x, 0px) var(--grid-shift-y, 0px);
+    mask-image: radial-gradient(ellipse at 50% 70%, black 20%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse at 50% 70%, black 20%, transparent 70%);
+  }
+  .scene.lights-off {
+    background:
+      linear-gradient(180deg, #08080e 0%, #0a0c14 100%);
+  }
+  .scene.lights-off::before { opacity: 0.45; }
+  .scene.lights-off .particles { opacity: 0.35; }
+
+  /* ── Floating Particles (CSS-only) ── */
+  .particles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .particle {
+    position: absolute; border-radius: 50%;
+    background: rgba(100, 180, 255, 0.25);
+    animation: particleFloat linear infinite;
+  }
+  @keyframes particleFloat {
+    0%   { transform: translateY(0) scale(1); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(-100vh) scale(0.3); opacity: 0; }
+  }
+
+  /* ── Avatar Container ── */
+  .avatar-stage {
+    position: relative;
+    width: 200px; height: 240px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+    transform-style: preserve-3d;
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  /* ── Glow Ring ── */
+  .glow-ring {
+    position: absolute;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    border: 2px solid rgba(80, 160, 255, 0.15);
+    box-shadow: 0 0 40px rgba(80, 160, 255, 0.08), inset 0 0 40px rgba(80, 160, 255, 0.04);
+    transition: all 0.6s ease;
+  }
+  .state-thinking .glow-ring {
+    border-color: rgba(180, 130, 255, 0.3);
+    box-shadow: 0 0 60px rgba(180, 130, 255, 0.15), inset 0 0 40px rgba(180, 130, 255, 0.06);
+    animation: glowPulse 1.5s ease-in-out infinite;
+  }
+  .state-using_tool .glow-ring {
+    border-color: rgba(80, 200, 255, 0.35);
+    box-shadow: 0 0 50px rgba(80, 200, 255, 0.15), inset 0 0 30px rgba(80, 200, 255, 0.06);
+    animation: glowPulse 0.8s ease-in-out infinite;
+  }
+  .state-celebrate .glow-ring {
+    border-color: rgba(40, 230, 140, 0.4);
+    box-shadow: 0 0 70px rgba(40, 230, 140, 0.2), inset 0 0 40px rgba(40, 230, 140, 0.08);
+  }
+  .state-error .glow-ring {
+    border-color: rgba(255, 80, 80, 0.4);
+    box-shadow: 0 0 60px rgba(255, 80, 80, 0.2), inset 0 0 40px rgba(255, 80, 80, 0.08);
+    animation: errorShake 0.4s ease-in-out;
+  }
+  @keyframes glowPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.06); opacity: 0.7; }
+  }
+  @keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    20%      { transform: translateX(-6px); }
+    40%      { transform: translateX(6px); }
+    60%      { transform: translateX(-4px); }
+    80%      { transform: translateX(4px); }
+  }
+
+  /* ── Avatar Body (Robot/Claw) ── */
+  .avatar {
+    position: relative;
+    width: 120px; height: 140px;
+    animation: avatarFloat 4s ease-in-out infinite;
+    transition: filter 0.4s ease;
+    transform-style: preserve-3d;
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+  .state-error .avatar { animation: avatarShake 0.5s ease-in-out 2; }
+  @keyframes avatarFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+  }
+  @keyframes avatarShake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    25%      { transform: translateX(-5px) rotate(-2deg); }
+    75%      { transform: translateX(5px) rotate(2deg); }
+  }
+
+  /* Head */
+  .head {
+    position: relative;
+    width: 100px; height: 100px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #1a1e2e 0%, #252a3a 100%);
+    border-radius: 28px;
+    border: 2px solid rgba(100, 170, 255, 0.12);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+    overflow: hidden;
+    backface-visibility: hidden;
+  }
+
+  /* Visor / Eye */
+  .visor {
+    position: absolute;
+    top: 28px; left: 18px; right: 18px;
+    height: 36px;
+    background: linear-gradient(180deg, #0d1020 0%, #151b30 100%);
+    border-radius: 10px;
+    border: 1px solid rgba(80, 160, 255, 0.15);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  .eye {
+    width: 14px; height: 14px;
+    background: radial-gradient(circle, #60b0ff 0%, #3070d0 60%, #1a3a80 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(80, 160, 255, 0.5), 0 0 24px rgba(80, 160, 255, 0.2);
+    transition: all 0.4s ease;
+    animation: eyeIdle 4s ease-in-out infinite;
+  }
+  @keyframes eyeIdle {
+    0%, 40%, 60%, 100% { transform: scaleY(1); }
+    45%, 55%           { transform: scaleY(0.1); }
+  }
+  .state-thinking .eye {
+    background: radial-gradient(circle, #c080ff 0%, #8040d0 60%, #4a2080 100%);
+    box-shadow: 0 0 16px rgba(180, 130, 255, 0.6), 0 0 32px rgba(180, 130, 255, 0.3);
+    animation: eyeThink 1.2s ease-in-out infinite;
+  }
+  @keyframes eyeThink {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.3); }
+  }
+  .state-using_tool .eye {
+    width: 40px; height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #40d0ff, #80e0ff, #40d0ff);
+    background-size: 200% 100%;
+    box-shadow: 0 0 12px rgba(80, 220, 255, 0.5);
+    animation: eyeScan 0.8s linear infinite;
+  }
+  @keyframes eyeScan {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+  }
+  .state-celebrate .eye {
+    background: radial-gradient(circle, #40ff90 0%, #20c070 60%, #108040 100%);
+    box-shadow: 0 0 16px rgba(40, 230, 140, 0.6), 0 0 32px rgba(40, 230, 140, 0.3);
+    animation: eyeCelebrate 0.6s ease-in-out infinite;
+  }
+  @keyframes eyeCelebrate {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.15) rotate(10deg); }
+  }
+  .state-error .eye {
+    width: 20px; height: 20px;
+    background: radial-gradient(circle, #ff4040 0%, #c02020 60%, #801010 100%);
+    box-shadow: 0 0 16px rgba(255, 60, 60, 0.6), 0 0 32px rgba(255, 60, 60, 0.3);
+    animation: none;
+  }
+
+  /* Antenna */
+  .antenna {
+    position: absolute;
+    top: -16px; left: 50%;
+    transform: translateX(-50%);
+    width: 2px; height: 16px;
+    background: rgba(100, 170, 255, 0.3);
+  }
+  .antenna::after {
+    content: '';
+    position: absolute; top: -5px; left: -4px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(80, 160, 255, 0.4);
+    box-shadow: 0 0 8px rgba(80, 160, 255, 0.3);
+    transition: all 0.4s ease;
+  }
+  .state-thinking .antenna::after {
+    background: rgba(180, 130, 255, 0.7);
+    box-shadow: 0 0 14px rgba(180, 130, 255, 0.6);
+    animation: antennaPulse 0.8s ease-in-out infinite;
+  }
+  .state-using_tool .antenna::after {
+    background: rgba(80, 220, 255, 0.7);
+    box-shadow: 0 0 14px rgba(80, 220, 255, 0.6);
+  }
+  .state-celebrate .antenna::after {
+    background: rgba(40, 230, 140, 0.8);
+    box-shadow: 0 0 14px rgba(40, 230, 140, 0.6);
+  }
+  .state-error .antenna::after {
+    background: rgba(255, 60, 60, 0.8);
+    box-shadow: 0 0 14px rgba(255, 60, 60, 0.6);
+  }
+  @keyframes antennaPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.5); }
+  }
+
+  /* Arms */
+  .arms { position: relative; width: 120px; height: 24px; margin-top: -4px; }
+  .arm {
+    position: absolute; top: 0;
+    width: 28px; height: 6px;
+    background: rgba(100, 170, 255, 0.15);
+    border-radius: 3px;
+    transition: all 0.4s ease;
+  }
+  .arm-l { left: 4px; transform-origin: right center; }
+  .arm-r { right: 4px; transform-origin: left center; }
+  .arm::after {
+    content: '';
+    position: absolute; top: -2px;
+    width: 10px; height: 10px;
+    background: rgba(100, 170, 255, 0.2);
+    border-radius: 3px;
+    transition: all 0.4s ease;
+  }
+  .arm-l::after { left: -8px; }
+  .arm-r::after { right: -8px; }
+
+  .state-using_tool .arm-l { animation: armTypeL 0.3s ease-in-out infinite alternate; }
+  .state-using_tool .arm-r { animation: armTypeR 0.3s ease-in-out infinite alternate-reverse; }
+  @keyframes armTypeL {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(-15deg); }
+  }
+  @keyframes armTypeR {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(15deg); }
+  }
+  .state-celebrate .arm-l { animation: armWaveL 0.5s ease-in-out infinite alternate; }
+  .state-celebrate .arm-r { animation: armWaveR 0.5s ease-in-out infinite alternate; }
+  @keyframes armWaveL {
+    0%   { transform: rotate(0deg) translateY(0); }
+    100% { transform: rotate(-25deg) translateY(-4px); }
+  }
+  @keyframes armWaveR {
+    0%   { transform: rotate(0deg) translateY(0); }
+    100% { transform: rotate(25deg) translateY(-4px); }
+  }
+
+  /* ── Thought Bubbles ── */
+  .thought-bubbles {
+    position: absolute; top: 10px; right: -30px;
+    opacity: 0; transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  .state-thinking .thought-bubbles { opacity: 1; }
+  .thought-dot {
+    width: 8px; height: 8px;
+    background: rgba(180, 130, 255, 0.4);
+    border-radius: 50%;
+    margin-bottom: 4px;
+    animation: thoughtFloat 1.5s ease-in-out infinite;
+  }
+  .thought-dot:nth-child(2) { width: 12px; height: 12px; animation-delay: 0.2s; }
+  .thought-dot:nth-child(3) { width: 16px; height: 16px; animation-delay: 0.4s; }
+  @keyframes thoughtFloat {
+    0%, 100% { transform: translateY(0) scale(1); opacity: 0.4; }
+    50%      { transform: translateY(-6px) scale(1.1); opacity: 0.8; }
+  }
+
+  /* ── Spark Particles (tool use) ── */
+  .sparks {
+    position: absolute; bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    width: 60px; height: 20px;
+    opacity: 0; transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .state-using_tool .sparks { opacity: 1; }
+  .spark {
+    position: absolute; bottom: 0;
+    width: 3px; height: 3px;
+    background: #60d8ff;
+    border-radius: 50%;
+    animation: sparkPop 0.6s ease-out infinite;
+  }
+  .spark:nth-child(1) { left: 10px; animation-delay: 0s; }
+  .spark:nth-child(2) { left: 20px; animation-delay: 0.15s; }
+  .spark:nth-child(3) { left: 30px; animation-delay: 0.3s; }
+  .spark:nth-child(4) { left: 40px; animation-delay: 0.1s; }
+  .spark:nth-child(5) { left: 50px; animation-delay: 0.25s; }
+  @keyframes sparkPop {
+    0%   { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(-18px) scale(0); opacity: 0; }
+  }
+
+  /* ── Confetti (celebrate) ── */
+  .confetti-container {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    opacity: 0; transition: opacity 0.3s ease;
+    overflow: hidden;
+  }
+  .state-celebrate .confetti-container { opacity: 1; }
+  .confetti-piece {
+    position: absolute; top: -10px;
+    width: 6px; height: 10px;
+    border-radius: 1px;
+    animation: confettiFall linear infinite;
+  }
+  @keyframes confettiFall {
+    0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(260px) rotate(720deg); opacity: 0; }
+  }
+
+  /* ── Status Label ── */
+  .state-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 24px;
+    min-height: 20px;
+    transition: color 0.4s ease;
+  }
+  .state-idle .state-label       { color: #6090c0; }
+  .state-thinking .state-label   { color: #b080ff; }
+  .state-using_tool .state-label { color: #50d0ff; }
+  .state-celebrate .state-label  { color: #30e090; }
+  .state-error .state-label      { color: #ff5050; }
+
+  /* ── Controls Panel ── */
+  .controls {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(10, 10, 18, 0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding: 14px 20px;
+  }
+  .controls-inner {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .btn-row {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  .btn {
+    appearance: none; border: none; outline: none;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #c0c8d8;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font: 600 12px/1 inherit;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .btn:active { transform: translateY(1px); }
+  .btn.active {
+    background: rgba(80, 160, 255, 0.15);
+    border-color: rgba(80, 160, 255, 0.3);
+    color: #80c0ff;
+  }
+  .btn[data-state="thinking"].active { background: rgba(180,130,255,0.15); border-color: rgba(180,130,255,0.3); color: #c0a0ff; }
+  .btn[data-state="using_tool"].active { background: rgba(80,220,255,0.15); border-color: rgba(80,220,255,0.3); color: #70e0ff; }
+  .btn[data-state="celebrate"].active { background: rgba(40,230,140,0.15); border-color: rgba(40,230,140,0.3); color: #50ff90; }
+  .btn[data-state="error"].active { background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.3); color: #ff7070; }
+
+  .bridge-row {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+  .btn-bridge {
+    appearance: none; border: none; outline: none;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #808898;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font: 500 11px/1 inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-bridge:hover { background: rgba(255,255,255,0.08); color: #b0b8c8; }
+  .btn-bridge:active { transform: translateY(1px); }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: rgba(255,255,255,0.35);
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #304060;
+    transition: background 0.3s ease;
+  }
+  .status-dot.ok { background: #30c070; box-shadow: 0 0 6px rgba(40,200,100,0.4); }
+
+  .log-panel {
+    margin-top: 8px;
+    font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    min-height: 16px;
+  }
+
+  .glow-ring,
+  .eye,
+  .arm,
+  .thought-dot,
+  .spark,
+  .particle,
+  .confetti-piece {
+    will-change: transform, opacity;
+  }
+
+  .gsap-enhanced .avatar,
+  .gsap-enhanced .glow-ring,
+  .gsap-enhanced .eye,
+  .gsap-enhanced .arm-l,
+  .gsap-enhanced .arm-r,
+  .gsap-enhanced .thought-dot,
+  .gsap-enhanced .spark,
+  .gsap-enhanced .particle,
+  .gsap-enhanced .confetti-piece {
+    animation: none !important;
+  }
+
+  #scene[data-quality="low"] .particle { opacity: 0.75; }
+</style>
+</head>
+<body x-data="canvasControls()" x-init="init()">
+
+<div class="scene state-idle" id="scene">
+  <!-- Ambient particles -->
+  <div class="particles" id="particles" aria-hidden="true"></div>
+
+  <!-- Avatar Stage -->
+  <div class="avatar-stage">
+    <div class="glow-ring" aria-hidden="true"></div>
+
+    <!-- Confetti layer -->
+    <div class="confetti-container" id="confetti" aria-hidden="true"></div>
+
+    <div class="avatar">
+      <!-- Thought bubbles -->
+      <div class="thought-bubbles" aria-hidden="true">
+        <div class="thought-dot"></div>
+        <div class="thought-dot"></div>
+        <div class="thought-dot"></div>
+      </div>
+
+      <!-- Antenna -->
+      <div class="antenna" aria-hidden="true"></div>
+
+      <!-- Head -->
+      <div class="head">
+        <div class="visor">
+          <div class="eye"></div>
+        </div>
+      </div>
+
+      <!-- Arms -->
+      <div class="arms">
+        <div class="arm arm-l"></div>
+        <div class="arm arm-r"></div>
+      </div>
+
+      <!-- Tool sparks -->
+      <div class="sparks" aria-hidden="true">
+        <div class="spark"></div>
+        <div class="spark"></div>
+        <div class="spark"></div>
+        <div class="spark"></div>
+        <div class="spark"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State Label -->
+  <div class="state-label" id="stateLabel" aria-live="polite" x-text="stateLabel">Idle</div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="controls-inner">
+    <!-- State buttons -->
+    <div class="btn-row" role="toolbar" aria-label="Agent state controls">
+      <template x-for="btn in stateButtons" :key="btn.state">
+        <button
+          class="btn"
+          :class="{ active: state === btn.state }"
+          :data-state="btn.state"
+          :aria-label="btn.ariaLabel"
+          @click="setState(btn.state)"
+          x-text="btn.label"
+        ></button>
+      </template>
+    </div>
+
+    <!-- Bridge actions -->
+    <div class="bridge-row" role="toolbar" aria-label="Bridge actions">
+      <template x-for="action in bridgeActions" :key="action.name">
+        <button
+          class="btn-bridge"
+          :id="action.id"
+          :aria-label="action.ariaLabel"
+          @click="sendAction(action.name, action.sourceComponentId)"
+          x-text="action.label"
+        ></button>
+      </template>
+      <button
+        class="btn-bridge"
+        id="btn-lights"
+        aria-label="Toggle ambient lights"
+        :aria-pressed="String(lightsOn)"
+        @click="toggleLights()"
+        x-text="lightsOn ? 'Lights: On' : 'Lights: Off'"
+      ></button>
+      <button
+        class="btn-bridge"
+        id="btn-demo"
+        aria-label="Run demo cycle"
+        @click="runDemo()"
+      >Demo Cycle</button>
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar">
+      <div class="status-dot" id="bridgeDot" :class="{ ok: bridgeConnected }"></div>
+      <span id="bridgeStatus" x-text="bridgeStatus">bridge: checking</span>
+      <span>&middot;</span>
+      <span id="stateStatus" x-text="stateStatus">state: idle</span>
+    </div>
+
+    <div class="log-panel" id="log" aria-live="polite" x-text="logMessage">Ready.</div>
+  </div>
+</div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('canvasControls', () => ({
+    state: 'idle',
+    lightsOn: true,
+    bridgeConnected: false,
+    bridgeStatus: 'bridge: checking',
+    logMessage: 'Ready.',
+    stateButtons: [
+      { state: 'idle', label: 'Idle', ariaLabel: 'Set idle state' },
+      { state: 'thinking', label: 'Thinking', ariaLabel: 'Set thinking state' },
+      { state: 'using_tool', label: 'Using Tool', ariaLabel: 'Set tool use state' },
+      { state: 'celebrate', label: 'Done', ariaLabel: 'Set celebrate state' },
+      { state: 'error', label: 'Error', ariaLabel: 'Set error state' },
+    ],
+    bridgeActions: [
+      { id: 'btn-hello', name: 'hello', sourceComponentId: 'demo.hello', label: 'Hello', ariaLabel: 'Send hello action' },
+      { id: 'btn-time', name: 'time', sourceComponentId: 'demo.time', label: 'Time', ariaLabel: 'Send time action' },
+      { id: 'btn-photo', name: 'photo', sourceComponentId: 'demo.photo', label: 'Photo', ariaLabel: 'Send photo action' },
+      { id: 'btn-dalek', name: 'dalek', sourceComponentId: 'demo.dalek', label: 'Dalek', ariaLabel: 'Send dalek action' },
+    ],
+    get stateLabel() {
+      const labels = {
+        idle: 'Idle',
+        thinking: 'Thinking...',
+        using_tool: 'Running Tool',
+        celebrate: 'Complete',
+        error: 'Error',
+      };
+      return labels[this.state] || 'Idle';
+    },
+    get stateStatus() {
+      return 'state: ' + this.state;
+    },
+    init() {
+      const syncFromApi = () => {
+        const api = window.openclawCanvasApi;
+        if (!api) return;
+        this.state = api.getState();
+        this.lightsOn = api.getLights();
+        const bridge = api.getBridgeStatus();
+        this.bridgeConnected = !!bridge.connected;
+        this.bridgeStatus = bridge.text;
+      };
+
+      window.addEventListener('openclaw:avatar-state', (ev) => {
+        const state = ev && ev.detail && ev.detail.state;
+        if (state) this.state = state;
+      });
+      window.addEventListener('openclaw:lights', (ev) => {
+        const on = ev && ev.detail && ev.detail.on;
+        this.lightsOn = !!on;
+      });
+      window.addEventListener('openclaw:bridge-status', (ev) => {
+        const detail = (ev && ev.detail) || {};
+        this.bridgeConnected = !!detail.connected;
+        this.bridgeStatus = detail.text || this.bridgeStatus;
+      });
+      window.addEventListener('openclaw:canvas-log', (ev) => {
+        const message = ev && ev.detail && ev.detail.message;
+        if (typeof message === 'string') this.logMessage = message;
+      });
+
+      syncFromApi();
+    },
+    setState(nextState) {
+      const api = window.openclawCanvasApi;
+      if (api) api.setState(nextState);
+      else this.state = nextState;
+    },
+    toggleLights() {
+      const api = window.openclawCanvasApi;
+      if (api) api.toggleLights();
+      else this.lightsOn = !this.lightsOn;
+    },
+    runDemo() {
+      const api = window.openclawCanvasApi;
+      if (api) api.runDemoCycle();
+    },
+    sendAction(name, sourceComponentId) {
+      const api = window.openclawCanvasApi;
+      if (api) api.sendAction(name, sourceComponentId);
+    },
+  }));
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+<script>
+(() => {
+  /* ── DOM refs ── */
+  const scene       = document.getElementById('scene');
+  const stateLabel  = document.getElementById('stateLabel');
+  const logEl       = document.getElementById('log');
+  const bridgeDot   = document.getElementById('bridgeDot');
+  const bridgeStat  = document.getElementById('bridgeStatus');
+  const stateStat   = document.getElementById('stateStatus');
+  const confettiEl  = document.getElementById('confetti');
+  const particlesEl = document.getElementById('particles');
+  const avatarStage = document.querySelector('.avatar-stage');
+  const avatar      = document.querySelector('.avatar');
+  const glowRing    = document.querySelector('.glow-ring');
+  const eye         = document.querySelector('.eye');
+  const head        = document.querySelector('.head');
+  const armL        = document.querySelector('.arm-l');
+  const armR        = document.querySelector('.arm-r');
+  const thoughtDots = Array.from(document.querySelectorAll('.thought-dot'));
+  const sparks      = Array.from(document.querySelectorAll('.spark'));
+
+  const reduceMotion = window.matchMedia
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false;
+  const GSAP = (!reduceMotion && window.gsap) ? window.gsap : null;
+  const deviceMemory = navigator.deviceMemory || 4;
+  const cpuThreads = navigator.hardwareConcurrency || 4;
+  const QUALITY_TIER = reduceMotion
+    ? 'low'
+    : (deviceMemory >= 8 && cpuThreads >= 8)
+      ? 'high'
+      : (deviceMemory <= 4 || cpuThreads <= 4)
+        ? 'low'
+        : 'balanced';
+  const QUALITY_BUDGET = {
+    high: { particles: 26, confetti: 34, flightHops: 16, sparkBurst: 6 },
+    balanced: { particles: 18, confetti: 24, flightHops: 12, sparkBurst: 5 },
+    low: { particles: 12, confetti: 14, flightHops: 8, sparkBurst: 4 },
+  }[QUALITY_TIER];
+  if (scene) scene.dataset.quality = QUALITY_TIER;
+  if (GSAP) {
+    GSAP.defaults({ ease: 'power2.out', overwrite: 'auto', force3D: true });
+    GSAP.config({ autoSleep: 60, nullTargetWarn: false });
+    GSAP.ticker.lagSmoothing(750, 33);
+    GSAP.ticker.fps(QUALITY_TIER === 'high' ? 60 : 50);
+  }
+
+  /* ── Logging ── */
+  const log = (msg) => {
+    const text = String(msg);
+    logEl.textContent = text;
+    window.dispatchEvent(new CustomEvent('openclaw:canvas-log', {
+      detail: { message: text },
+    }));
+  };
+  let lightsOn = true;
+
+  const setLights = (on) => {
+    lightsOn = !!on;
+    scene.classList.toggle('lights-off', !lightsOn);
+    window.dispatchEvent(new CustomEvent('openclaw:lights', {
+      detail: { on: lightsOn },
+    }));
+  };
+
+  /* ── State Machine ── */
+  const STATES = ['idle', 'thinking', 'using_tool', 'celebrate', 'error'];
+  const STATE_LABELS = {
+    idle: 'Idle',
+    thinking: 'Thinking\u2026',
+    using_tool: 'Running Tool',
+    celebrate: 'Complete',
+    error: 'Error',
+  };
+
+  let currentState = 'idle';
+  const STATE_MOTION = {
+    idle:       { y: 0,  scale: 1.0,  rotate: 0 },
+    thinking:   { y: -4, scale: 1.02, rotate: -1.2 },
+    using_tool: { y: -2, scale: 1.03, rotate: 0.8 },
+    celebrate:  { y: -6, scale: 1.06, rotate: 0 },
+    error:      { y: 0,  scale: 0.98, rotate: 0 },
+  };
+
+  const motion = {
+    stateLoops: [],
+    baseLoops: [],
+    blinkCall: null,
+    pointerAttached: false,
+    quick: null,
+  };
+
+  const clearLoops = (list) => {
+    while (list.length) {
+      const loop = list.pop();
+      if (loop && typeof loop.kill === 'function') loop.kill();
+    }
+  };
+
+  const stopBlinkScheduler = () => {
+    if (!motion.blinkCall) return;
+    motion.blinkCall.kill();
+    motion.blinkCall = null;
+  };
+
+  const scheduleBlink = () => {
+    if (!GSAP || !eye) return;
+    stopBlinkScheduler();
+    const blinkNow = () => {
+      if (currentState !== 'using_tool' && currentState !== 'error') {
+        GSAP.fromTo(eye, { scaleY: 1 }, { scaleY: 0.08, duration: 0.07, yoyo: true, repeat: 1, ease: 'power1.inOut' });
+      }
+      motion.blinkCall = GSAP.delayedCall(GSAP.utils.random(1.6, 4.2), blinkNow);
+    };
+    motion.blinkCall = GSAP.delayedCall(GSAP.utils.random(1.1, 2.2), blinkNow);
+  };
+
+  const initQuickSetters = () => {
+    if (!GSAP || !scene) return;
+    motion.quick = {
+      bgX: GSAP.quickTo(scene, '--bg-shift-x', { duration: 0.45, ease: 'power2.out' }),
+      bgY: GSAP.quickTo(scene, '--bg-shift-y', { duration: 0.45, ease: 'power2.out' }),
+      gridX: GSAP.quickTo(scene, '--grid-shift-x', { duration: 0.55, ease: 'power2.out' }),
+      gridY: GSAP.quickTo(scene, '--grid-shift-y', { duration: 0.55, ease: 'power2.out' }),
+      avatarX: avatar ? GSAP.quickTo(avatar, 'x', { duration: 0.45, ease: 'power2.out' }) : null,
+      avatarY: avatar ? GSAP.quickTo(avatar, 'y', { duration: 0.45, ease: 'power2.out' }) : null,
+      avatarRX: avatar ? GSAP.quickTo(avatar, 'rotateX', { duration: 0.45, ease: 'power2.out' }) : null,
+      avatarRY: avatar ? GSAP.quickTo(avatar, 'rotateY', { duration: 0.45, ease: 'power2.out' }) : null,
+      glowX: glowRing ? GSAP.quickTo(glowRing, 'x', { duration: 0.58, ease: 'power2.out' }) : null,
+      glowY: glowRing ? GSAP.quickTo(glowRing, 'y', { duration: 0.58, ease: 'power2.out' }) : null,
+      eyeX: eye ? GSAP.quickTo(eye, 'x', { duration: 0.25, ease: 'power2.out' }) : null,
+      eyeY: eye ? GSAP.quickTo(eye, 'y', { duration: 0.25, ease: 'power2.out' }) : null,
+    };
+  };
+
+  const setSceneParallax = (nx, ny) => {
+    if (!GSAP || !scene || !motion.quick) return;
+    motion.quick.bgX((nx * 18) + 'px');
+    motion.quick.bgY((ny * 12) + 'px');
+    motion.quick.gridX((nx * 10) + 'px');
+    motion.quick.gridY((ny * 8) + 'px');
+    if (currentState !== 'using_tool') {
+      if (motion.quick.avatarX) motion.quick.avatarX(nx * 7);
+      if (motion.quick.avatarY) motion.quick.avatarY(ny * 5);
+      if (motion.quick.avatarRY) motion.quick.avatarRY(nx * 7);
+      if (motion.quick.avatarRX) motion.quick.avatarRX(-ny * 5);
+      if (motion.quick.glowX) motion.quick.glowX(nx * 12);
+      if (motion.quick.glowY) motion.quick.glowY(ny * 8);
+      if (motion.quick.eyeX) motion.quick.eyeX(nx * 3.5);
+      if (motion.quick.eyeY) motion.quick.eyeY(ny * 2.5);
+    }
+  };
+
+  const attachPointerMotion = () => {
+    if (!GSAP || motion.pointerAttached) return;
+    motion.pointerAttached = true;
+
+    const onPointerMove = (e) => {
+      const nx = ((e.clientX / window.innerWidth) - 0.5) * 2;
+      const ny = ((e.clientY / window.innerHeight) - 0.5) * 2;
+      setSceneParallax(nx, ny);
+    };
+    const onPointerLeave = () => setSceneParallax(0, 0);
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerleave', onPointerLeave, { passive: true });
+  };
+
+  const toolFlightBounds = () => {
+    const stageW = avatarStage ? (avatarStage.offsetWidth || 200) : 200;
+    const stageH = avatarStage ? (avatarStage.offsetHeight || 240) : 240;
+    const controlsEl = document.querySelector('.controls');
+    const controlsH = controlsEl ? controlsEl.offsetHeight : 0;
+
+    const padSide = 30;
+    const padTop = 22;
+    const padBottom = Math.max(controlsH + 20, 28);
+
+    const maxX = Math.max(36, (window.innerWidth / 2) - (stageW / 2) - padSide);
+    const maxUp = Math.max(36, (window.innerHeight / 2) - (stageH / 2) - padTop);
+    const maxDown = Math.max(36, (window.innerHeight / 2) - (stageH / 2) - padBottom);
+
+    return {
+      minX: -maxX,
+      maxX,
+      minY: -maxUp,
+      maxY: maxDown,
+    };
+  };
+
+  const applyStateChoreography = (state) => {
+    if (!GSAP) return;
+
+    clearLoops(motion.stateLoops);
+    const movingParts = [armL, armR, eye, glowRing, head, ...thoughtDots, ...sparks].filter(Boolean);
+    GSAP.killTweensOf(movingParts);
+    if (avatarStage) GSAP.killTweensOf(avatarStage);
+    GSAP.set([armL, armR].filter(Boolean), { rotate: 0, y: 0 });
+    GSAP.set(thoughtDots.filter(Boolean), { y: 0, opacity: 0.45, scale: 1 });
+    GSAP.set(sparks.filter(Boolean), { y: 0, opacity: 0, scale: 1 });
+    GSAP.set([glowRing, eye, head].filter(Boolean), { filter: 'none' });
+    if (head) GSAP.set(head, { x: 0, rotateX: 0 });
+    if (avatarStage) GSAP.set(avatarStage, { x: 0, y: 0, rotate: 0 });
+    if (avatar) GSAP.set(avatar, { x: 0, y: 0, rotateX: 0, rotateY: 0 });
+    if (glowRing) GSAP.set(glowRing, { x: 0, y: 0 });
+    if (currentState !== 'using_tool') GSAP.set(eye, { x: 0, y: 0 });
+
+    if (state === 'idle') {
+      if (glowRing) motion.stateLoops.push(GSAP.to(glowRing, { scale: 1.02, opacity: 0.9, duration: 2.4, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+      return;
+    }
+
+    if (state === 'thinking') {
+      if (glowRing) motion.stateLoops.push(GSAP.to(glowRing, { scale: 1.085, opacity: 1, duration: 1.05, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+      if (eye) motion.stateLoops.push(GSAP.to(eye, { scale: 1.16, duration: 0.82, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+      thoughtDots.forEach((dot, i) => {
+        motion.stateLoops.push(GSAP.to(dot, {
+          y: -8 - (i * 2),
+          opacity: 0.9,
+          scale: 1.05 + (i * 0.05),
+          duration: 0.7 + i * 0.12,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+          delay: i * 0.08,
+        }));
+      });
+      return;
+    }
+
+    if (state === 'using_tool') {
+      if (avatarStage) {
+        const flight = GSAP.timeline({
+          repeat: -1,
+          repeatRefresh: true,
+          delay: 0.16,
+          defaults: { ease: 'sine.inOut' },
+        });
+        for (let i = 0; i < QUALITY_BUDGET.flightHops; i++) {
+          flight.to(avatarStage, {
+            x: () => {
+              const b = toolFlightBounds();
+              return GSAP.utils.random(b.minX, b.maxX);
+            },
+            y: () => {
+              const b = toolFlightBounds();
+              return GSAP.utils.random(b.minY, b.maxY);
+            },
+            rotate: () => GSAP.utils.random(-6, 6),
+            duration: () => GSAP.utils.random(0.82, 1.34),
+            onStart: () => {
+              if (avatar) {
+                GSAP.to(avatar, {
+                  rotateY: GSAP.utils.random(-7, 7),
+                  rotateX: GSAP.utils.random(-5, 5),
+                  duration: 0.46,
+                  ease: 'sine.out',
+                  overwrite: 'auto',
+                });
+              }
+            },
+          });
+        }
+        flight.to(avatarStage, { x: 0, y: 0, rotate: 0, duration: 0.78, ease: 'power2.inOut' });
+        motion.stateLoops.push(flight);
+      }
+      if (glowRing) motion.stateLoops.push(GSAP.to(glowRing, { scale: 1.06, duration: 0.55, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+      if (armL) motion.stateLoops.push(GSAP.to(armL, { rotate: -18, duration: 0.12, yoyo: true, repeat: -1, ease: 'none' }));
+      if (armR) motion.stateLoops.push(GSAP.to(armR, { rotate: 18, duration: 0.12, yoyo: true, repeat: -1, ease: 'none' }));
+      if (eye) motion.stateLoops.push(GSAP.fromTo(eye, { backgroundPositionX: '0%' }, { backgroundPositionX: '200%', duration: 0.6, repeat: -1, ease: 'none' }));
+
+      sparks.slice(0, QUALITY_BUDGET.sparkBurst).forEach((spark, i) => {
+        const sparkTl = GSAP.timeline({ repeat: -1, delay: i * 0.07 });
+        sparkTl.to(spark, { opacity: 1, duration: 0.06, ease: 'none' });
+        sparkTl.to(spark, { y: -18, scale: 0.2, opacity: 0, duration: 0.42, ease: 'power2.out' });
+        sparkTl.set(spark, { y: 0, scale: 1 });
+        motion.stateLoops.push(sparkTl);
+      });
+      return;
+    }
+
+    if (state === 'celebrate') {
+      if (glowRing) motion.stateLoops.push(GSAP.to(glowRing, { scale: 1.14, opacity: 1, duration: 0.42, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+      if (armL) motion.stateLoops.push(GSAP.to(armL, { rotate: -28, y: -4, duration: 0.24, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+      if (armR) motion.stateLoops.push(GSAP.to(armR, { rotate: 28, y: -4, duration: 0.24, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.05 }));
+      if (eye) motion.stateLoops.push(GSAP.to(eye, { scale: 1.22, duration: 0.32, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+      return;
+    }
+
+    if (state === 'error') {
+      if (glowRing) motion.stateLoops.push(GSAP.to(glowRing, { opacity: 0.65, duration: 0.1, yoyo: true, repeat: -1, ease: 'none' }));
+      if (head) motion.stateLoops.push(GSAP.to(head, { x: 2.5, duration: 0.04, yoyo: true, repeat: -1, ease: 'none' }));
+      if (eye) motion.stateLoops.push(GSAP.to(eye, { opacity: 0.35, duration: 0.08, yoyo: true, repeat: -1, ease: 'none' }));
+    }
+  };
+
+  const startMotionDirector = () => {
+    if (!GSAP) return;
+    scene.classList.add('gsap-enhanced');
+    GSAP.set([avatarStage, avatar, glowRing, head, eye].filter(Boolean), { transformOrigin: '50% 50%' });
+    if (avatar) GSAP.set(avatar, { transformPerspective: 900, rotateX: 0, rotateY: 0 });
+    initQuickSetters();
+
+    clearLoops(motion.baseLoops);
+    if (glowRing) motion.baseLoops.push(GSAP.to(glowRing, { rotate: 360, duration: 18, repeat: -1, ease: 'none' }));
+    if (avatar) motion.baseLoops.push(GSAP.to(avatar, { z: 12, duration: 2.8, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+
+    attachPointerMotion();
+    window.addEventListener('resize', () => {
+      if (currentState !== 'using_tool') setSceneParallax(0, 0);
+    }, { passive: true });
+    scheduleBlink();
+    applyStateChoreography(currentState);
+  };
+
+  const animateStateTransition = (newState, prevState) => {
+    if (!GSAP || !avatarStage) return;
+    const profile = STATE_MOTION[newState] || STATE_MOTION.idle;
+
+    GSAP.killTweensOf([avatarStage, stateLabel, glowRing, head].filter(Boolean));
+
+    const tl = GSAP.timeline();
+    tl.fromTo(
+      stateLabel,
+      { autoAlpha: 0.35, y: 6 },
+      { autoAlpha: 1, y: 0, duration: 0.22 },
+      0
+    );
+    tl.fromTo(
+      avatarStage,
+      { y: 0, scale: 1, rotate: 0 },
+      { y: profile.y, scale: profile.scale, rotate: profile.rotate, duration: 0.28 },
+      0
+    );
+
+    if (newState === 'thinking' && prevState !== 'thinking') {
+      if (head) tl.fromTo(head, { rotateX: -7 }, { rotateX: 0, duration: 0.32, ease: 'power2.out' }, 0.02);
+      if (glowRing) tl.fromTo(glowRing, { scale: 0.9, opacity: 0.4 }, { scale: 1.08, opacity: 1, duration: 0.42 }, 0);
+    }
+
+    if (newState === 'using_tool' && prevState !== 'using_tool') {
+      tl.fromTo(avatarStage, { rotateX: 0 }, { rotateX: -5, duration: 0.14, yoyo: true, repeat: 1 }, 0.04);
+      if (glowRing) tl.fromTo(glowRing, { scale: 0.95 }, { scale: 1.1, duration: 0.26, ease: 'power2.out' }, 0);
+    }
+
+    if (newState === 'error') {
+      tl.fromTo(
+        avatarStage,
+        { x: -5 },
+        { x: 5, duration: 0.055, repeat: 5, yoyo: true, ease: 'none' },
+        0.02
+      );
+      tl.set(avatarStage, { x: 0 });
+    } else if (newState === 'celebrate' && prevState !== 'celebrate') {
+      tl.fromTo(
+        avatarStage,
+        { y: 0 },
+        { y: -14, duration: 0.16, yoyo: true, repeat: 1, ease: 'power2.out' },
+        0
+      );
+      tl.fromTo(
+        avatarStage,
+        { rotate: -3 },
+        { rotate: 3, duration: 0.09, repeat: 3, yoyo: true, ease: 'sine.inOut' },
+        0.04
+      );
+      if (glowRing) tl.fromTo(glowRing, { scale: 0.92 }, { scale: 1.18, duration: 0.38, ease: 'power2.out' }, 0.04);
+      tl.set(avatarStage, { rotate: 0 });
+    }
+
+    tl.to(
+      avatarStage,
+      { y: 0, scale: 1, rotate: 0, duration: 0.45, ease: 'elastic.out(1, 0.7)' },
+      0.24
+    );
+  };
+
+  const setState = (newState) => {
+    if (!STATES.includes(newState)) return;
+    const prev = currentState;
+    currentState = newState;
+
+    STATES.forEach((s) => scene.classList.remove('state-' + s));
+    scene.classList.add('state-' + newState);
+
+    stateLabel.textContent = STATE_LABELS[newState];
+    stateStat.textContent = 'state: ' + newState;
+
+    if (newState === 'celebrate') {
+      spawnConfetti();
+    }
+    animateStateTransition(newState, prev);
+    applyStateChoreography(newState);
+
+    window.dispatchEvent(new CustomEvent('openclaw:avatar-state', {
+      detail: { state: newState, prev },
+    }));
+  };
+
+  setLights(true);
+
+  /* ── External API: window.setAgentState(name) ── */
+  window.setAgentState = setState;
+
+  /* ── Event listener for bridge-driven state changes ── */
+  window.addEventListener('openclaw:agent-status', (ev) => {
+    const d = ev && ev.detail;
+    if (d && d.state && STATES.includes(d.state)) {
+      setState(d.state);
+      if (d.message) log(d.message);
+    }
+  });
+
+  /* ── Confetti generator ── */
+  const CONFETTI_COLORS = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff','#ff9e7d'];
+  const spawnConfetti = () => {
+    confettiEl.innerHTML = '';
+    for (let i = 0; i < QUALITY_BUDGET.confetti; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + '%';
+      piece.style.background = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+      confettiEl.appendChild(piece);
+
+      if (GSAP) {
+        const delay = Math.random() * 0.35;
+        const duration = 1.4 + Math.random() * 1.4;
+        piece.style.animation = 'none';
+
+        GSAP.set(piece, {
+          x: 0,
+          y: -20,
+          rotate: -90 + Math.random() * 180,
+          opacity: 0,
+          scale: 0.85 + Math.random() * 0.45,
+        });
+        const tl = GSAP.timeline({ delay, onComplete: () => piece.remove() });
+        tl.to(piece, { opacity: 1, duration: 0.1 }, 0);
+        tl.to(piece, {
+          x: -80 + Math.random() * 160,
+          y: 220 + Math.random() * 80,
+          rotate: -480 + Math.random() * 960,
+          duration,
+          ease: 'power1.in',
+        }, 0);
+        tl.to(piece, { opacity: 0, duration: 0.28 }, duration * 0.78);
+      } else {
+        piece.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+        piece.style.animationDelay = (Math.random() * 0.6) + 's';
+      }
+    }
+  };
+
+  /* ── Ambient particles ── */
+  const runAmbientParticleTween = (particle) => {
+    if (!GSAP) return;
+    const travelDistance = window.innerHeight + 120;
+    const moveDuration = 8 + Math.random() * 12;
+    GSAP.set(particle, { x: 0, y: 0, opacity: 0, force3D: true });
+
+    GSAP.to(particle, { opacity: 1, duration: moveDuration * 0.12, ease: 'none' });
+    GSAP.to(particle, {
+      y: -travelDistance,
+      x: -28 + Math.random() * 56,
+      duration: moveDuration,
+      ease: 'none',
+      onComplete: () => {
+        particle.style.left = Math.random() * 100 + '%';
+        runAmbientParticleTween(particle);
+      },
+    });
+    GSAP.to(particle, {
+      opacity: 0,
+      duration: moveDuration * 0.18,
+      delay: moveDuration * 0.82,
+      ease: 'none',
+    });
+  };
+
+  const spawnParticles = () => {
+    particlesEl.innerHTML = '';
+    for (let i = 0; i < QUALITY_BUDGET.particles; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = 2 + Math.random() * 3;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.bottom = '-10px';
+      particlesEl.appendChild(p);
+
+      if (GSAP) {
+        p.style.animation = 'none';
+        GSAP.delayedCall(Math.random() * 4, () => runAmbientParticleTween(p));
+      } else {
+        p.style.animationDuration = (8 + Math.random() * 12) + 's';
+        p.style.animationDelay = (Math.random() * 10) + 's';
+      }
+    }
+  };
+  spawnParticles();
+  startMotionDirector();
+
+  /* ── Demo cycle ── */
+  const handleDemoCycle = () => {
+    const sequence = [
+      { state: 'thinking',  delay: 0,    msg: 'Planning task\u2026' },
+      { state: 'using_tool', delay: 2200, msg: 'Running tool: search codebase' },
+      { state: 'using_tool', delay: 4400, msg: 'Running tool: edit file' },
+      { state: 'celebrate',  delay: 6600, msg: 'Task complete!' },
+      { state: 'idle',       delay: 9600, msg: 'Ready.' },
+    ];
+    sequence.forEach(({ state, delay, msg }) => {
+      setTimeout(() => { setState(state); log(msg); }, delay);
+    });
+  };
+  /* ── OpenClaw Bridge (preserved from original) ── */
+  const hasIOS = () => window.webkit?.messageHandlers?.openclawCanvasA2UIAction != null;
+  const hasAndroid = () => typeof window.openclawCanvasA2UIAction?.postMessage === 'function';
+  const hasHelper = () => typeof window.openclawSendUserAction === 'function';
+
+  const bridgeOk = hasHelper() || hasIOS() || hasAndroid();
+  const bridgeText = 'bridge: ' + (bridgeOk ? 'connected' : 'standalone');
+  bridgeDot.classList.toggle('ok', bridgeOk);
+  bridgeStat.textContent = bridgeText;
+  window.dispatchEvent(new CustomEvent('openclaw:bridge-status', {
+    detail: { connected: bridgeOk, text: bridgeText },
+  }));
+
+  const onActionStatus = (ev) => {
+    const d = ev?.detail ?? {};
+    log(`Action status: id=${d.id ?? '?'} ok=${!!d.ok}${d.error ? ` error=${d.error}` : ''}`);
+    if (d.ok) setState('celebrate');
+    else if (d.error) setState('error');
+  };
+  window.addEventListener('openclaw:a2ui-action-status', onActionStatus);
+
+  const send = (name, sourceComponentId) => {
+    if (!hasHelper()) {
+      log('No bridge — running in standalone mode.');
+      return;
+    }
+    setState('thinking');
+    log(`Sending: ${name}`);
+    const ok = window.openclawSendUserAction({
+      name,
+      surfaceId: 'main',
+      sourceComponentId,
+      context: { t: Date.now() },
+    });
+    setState(ok ? 'using_tool' : 'error');
+    log(`${ok ? 'Sent' : 'Failed to send'} action: ${name}`);
+  };
+
+  window.openclawCanvasApi = {
+    setState,
+    getState: () => currentState,
+    setLights,
+    toggleLights: () => setLights(!lightsOn),
+    getLights: () => lightsOn,
+    runDemoCycle: handleDemoCycle,
+    sendAction: send,
+    getBridgeStatus: () => ({ connected: bridgeOk, text: bridgeText }),
+  };
+})();
+</script>
+<script src="./cronCurrent.js"></script>
+<script src="./activity.js"></script>
+<script src="./connector.js"></script>
+</body>
+</html>
