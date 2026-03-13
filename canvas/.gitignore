@@ -1,6 +1,0 @@
-node_modules/
-.next/
-out/
-cron/
-.DS_Store
-npm-debug.log*

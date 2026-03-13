@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "description": "OpenClaw Canvas (Next.js + TypeScript)",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/run-next-with-access.mjs dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/run-next-with-access.mjs start",
     "demo:capture": "node scripts/demo/capture-zyndrel.mjs",
     "email-life-tasks:dry": "node scripts/email_life_task_cron.js --dry-run"
   },
