@@ -1,4 +1,6 @@
 # OpenClaw Canvas
+![Zyndrel workspace demo](docs/demo/workspace-demo.gif)
+
 
 Next.js + TypeScript app scaffold for the OpenClaw Canvas UI.
 
@@ -53,11 +55,7 @@ Generated assets:
 - `docs/demo/workspace-hero.png`
 - `docs/demo/workspace-control-chat.png`
 - `docs/demo/workspace-files-panel.png`
-
-Embedded preview:
-
-![Zyndrel workspace demo](docs/demo/workspace-demo.gif)
-
+- 
 Still captures:
 
 - [Workspace hero](docs/demo/workspace-hero.png)
